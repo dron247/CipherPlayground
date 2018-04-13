@@ -3,6 +3,7 @@ package ru.playground.authtests
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import android.support.v4.hardware.fingerprint.FingerprintManagerCompat
 import android.util.Base64
 import java.security.*
 import java.security.spec.InvalidKeySpecException
@@ -152,6 +153,13 @@ class KeyStoreProvider {
         }
 
         return null
+    }
+
+
+    fun getCryptoObjectFor(key: String): FingerprintManagerCompat.CryptoObject? {
+        return if (readyFor(key) && initCipher(Cipher.DECRYPT_MODE, key)) {
+            FingerprintManagerCompat.CryptoObject(cipher!!)
+        } else null
     }
 
 }

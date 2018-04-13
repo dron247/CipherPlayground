@@ -3,6 +3,7 @@ package ru.playground.authtests
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.preference.PreferenceManager
+import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.widget.Button
@@ -32,15 +33,17 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         editPin = findViewById(R.id.editPin)
 
-        buttonDecipherPin = findViewById<Button>(R.id.buttonDecipherPin).also {
-            it.setOnClickListener(this)
-        }
-        buttonRememberPin = findViewById<Button>(R.id.buttonRememberPin).also {
-            it.setOnClickListener(this)
-        }
+        buttonDecipherPin = findViewById(R.id.buttonDecipherPin)
+        buttonRememberPin = findViewById(R.id.buttonRememberPin)
 
         keyStoreProvider = KeyStoreProvider()
         preferences = PreferenceManager.getDefaultSharedPreferences(this)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        buttonDecipherPin.setOnClickListener(this)
+        buttonRememberPin.setOnClickListener(this)
     }
 
     override fun onClick(clickedView: View) {
@@ -56,17 +59,9 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             return
         }
 
-        when (touchIdState) {
-            TouchIdState.NOT_SUPPORTED -> toast("NOT SUPPORTED")
-            TouchIdState.NOT_SECURED -> toast("NOT SECURED")
-            TouchIdState.NO_FINGERPRINTS -> toast("NO FINGERPRINTS")
-            TouchIdState.READY -> {
-                val encoded = keyStoreProvider.encode(PIN, pin)
-                preferences.edit().run {
-                    putString(PIN, encoded)
-                    apply()
-                }
-            }
+        val encoded = keyStoreProvider.encode(PIN, pin)
+        preferences.edit {
+            putString(PIN, encoded)
         }
 
     }
@@ -77,10 +72,32 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             toast("Нет сохраненного пина")
             return
         }
+
+        when (touchIdState) {
+            TouchIdState.NOT_SUPPORTED -> toast("NOT SUPPORTED")
+            TouchIdState.NOT_SECURED -> toast("NOT SECURED")
+            TouchIdState.NO_FINGERPRINTS -> toast("NO FINGERPRINTS")
+            TouchIdState.READY -> {
+                val cryptoObject = keyStoreProvider.getCryptoObjectFor(PIN)
+                if (cryptoObject != null) {
+                    toast("Use your finger to get a pin")
+                    //
+                } else {
+                    preferences.edit {
+                        remove(PIN)
+                    }
+                    toast("Removed memorized PIN due to fingerprint set change")
+                }
+            }
+        }
     }
 
-    private fun toast(string: String) {
-        Toast.makeText(this, string, Toast.LENGTH_SHORT).show()
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun alert(message: String) {
+        val builder = AlertDialog.Builder(this)
     }
 
 }
