@@ -1,8 +1,11 @@
 package ru.playground.authtests
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.preference.PreferenceManager
+import android.support.v4.hardware.fingerprint.FingerprintManagerCompat
+import android.support.v4.os.CancellationSignal
 import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import android.view.View
@@ -22,6 +25,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     lateinit var buttonDecipherPin: Button
     lateinit var buttonRememberPin: Button
     lateinit var editPin: EditText
+
+    var fingerprintHelper: FingerprintHelper? = null
 
     private val hasPin by lazy {
         preferences.contains(PIN)
@@ -46,6 +51,11 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         buttonRememberPin.setOnClickListener(this)
     }
 
+    override fun onStop() {
+        super.onStop()
+        fingerprintHelper?.cancel()
+    }
+
     override fun onClick(clickedView: View) {
         when (clickedView.id) {
             buttonDecipherPin.id -> decipherPin()
@@ -55,7 +65,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun rememberPin(pin: String) {
         if (pin.length < 3) {
-            Toast.makeText(this, "Короткий пин", Toast.LENGTH_SHORT).show()
+            toast("PIN is too short")
             return
         }
 
@@ -69,7 +79,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun decipherPin() {
         if (!hasPin) {
-            toast("Нет сохраненного пина")
+            alert("No saved PIN")
             return
         }
 
@@ -80,14 +90,30 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             TouchIdState.READY -> {
                 val cryptoObject = keyStoreProvider.getCryptoObjectFor(PIN)
                 if (cryptoObject != null) {
-                    toast("Use your finger to get a pin")
-                    //
+                    toast("Use your finger to get a PIN")
+                    fingerprintHelper = FingerprintHelper(this)
+                    fingerprintHelper?.let {
+                        it.errorListener = this::alert
+                        it.successListener = this::onAuthSuccess
+                        it.start(cryptoObject)
+                    }
                 } else {
                     preferences.edit {
                         remove(PIN)
                     }
-                    toast("Removed memorized PIN due to fingerprint set change")
+                    alert("Removed memorized PIN due to fingerprint set change")
                 }
+            }
+        }
+    }
+
+    private fun onAuthSuccess(result: FingerprintManagerCompat.AuthenticationResult?) {
+        result?.let {
+            val cipher = it.cryptoObject.cipher
+            val encoded = preferences.getString(PIN, null)
+            if (encoded != null || cipher != null) {
+                val decoded = keyStoreProvider.decode(PIN, encoded, cipher!!)
+                alert(decoded ?: "decoded is null WTF")
             }
         }
     }
@@ -97,7 +123,46 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun alert(message: String) {
-        val builder = AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
+                .setMessage(message)
+                .setCancelable(false)
+                .setPositiveButton("Close", { dialog, _ -> dialog.dismiss() })
+                .create()
+        dialog.show()
+    }
+
+    class FingerprintHelper(private val context: Context) : FingerprintManagerCompat.AuthenticationCallback() {
+        private var cancellationSignal: CancellationSignal? = null
+        var errorListener: ((errorMessage: String) -> Unit)? = null
+        var successListener: ((result: FingerprintManagerCompat.AuthenticationResult?) -> Unit)? = null
+
+        fun start(cryptoObject: FingerprintManagerCompat.CryptoObject) {
+            cancellationSignal = CancellationSignal()
+            val managerCompat = FingerprintManagerCompat.from(context)
+            managerCompat.authenticate(cryptoObject, 0, cancellationSignal, this, null)
+        }
+
+        fun cancel() {
+            cancellationSignal?.cancel()
+            errorListener = null
+            successListener = null
+        }
+
+        override fun onAuthenticationError(errMsgId: Int, errString: CharSequence?) {
+            errorListener?.invoke(errString.toString())
+        }
+
+        override fun onAuthenticationSucceeded(result: FingerprintManagerCompat.AuthenticationResult?) {
+            successListener?.invoke(result)
+        }
+
+        override fun onAuthenticationHelp(helpMsgId: Int, helpString: CharSequence?) {
+            errorListener?.invoke(helpString.toString())
+        }
+
+        override fun onAuthenticationFailed() {
+            errorListener?.invoke("Failed")
+        }
     }
 
 }
