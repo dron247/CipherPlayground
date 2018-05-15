@@ -1,6 +1,5 @@
 package ru.playground.authtests
 
-import android.annotation.TargetApi
 import android.content.Context
 import android.os.Build
 import android.security.KeyPairGeneratorSpec
@@ -20,7 +19,8 @@ import javax.crypto.spec.SecretKeySpec
 import javax.security.auth.x500.X500Principal
 import kotlin.collections.ArrayList
 
-@TargetApi(Build.VERSION_CODES.LOLLIPOP)
+
+//@TargetApi(Build.VERSION_CODES.LOLLIPOP)
 class EncryptedStorage(
         private val context: Context,
         private val vault: IDataVault,
@@ -42,14 +42,14 @@ class EncryptedStorage(
         }
     }
 
+    private fun decodeKeySpec(encodedSpec: String): Key {
+        val encrypted = Base64.decode(encodedSpec, Base64.DEFAULT)
+        val key = rsaDecrypt(secretKeyAlias, encrypted)
+        return SecretKeySpec(key, SECRET_KEY_SPEC_ALGORITHM)
+    }
+
     private val secretKey: Key
         get() {
-            fun decodeKeySpec(encodedSpec: String): Key {
-                val encrypted = Base64.decode(encodedSpec, Base64.DEFAULT)
-                val key = rsaDecrypt(secretKeyAlias, encrypted)
-                return SecretKeySpec(key, SECRET_KEY_SPEC_ALGORITHM)
-            }
-
             var retVal = vault.read(secretKeyAlias, null)
             if (retVal != null) return decodeKeySpec(retVal)
 
@@ -64,7 +64,7 @@ class EncryptedStorage(
         }
 
     //region RSA pairs
-    private fun getKey(alias: String): KeyStore.Entry {
+    private fun initKeyPairIfNeeded(alias: String) {
         if (!keyStore.containsAlias(alias)) {
             val start = Calendar.getInstance()
             val end = Calendar.getInstance().also {
@@ -84,13 +84,25 @@ class EncryptedStorage(
                 generateKeyPair()
             }
         }
-        return keyStore.getEntry(alias, null)
+    }
+
+    private fun getCipher(): Cipher {
+        try {
+            return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) { // below android m
+                Cipher.getInstance("RSA/ECB/PKCS1Padding", ANDROID_OPEN_SSL) // error in android 6: InvalidKeyException: Need RSA private or public key
+            } else { // android m and above
+                Cipher.getInstance("RSA/ECB/PKCS1Padding", "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
+            }
+        } catch (exception: Exception) {
+            throw RuntimeException("getCipher: Failed to get an instance of Cipher", exception)
+        }
     }
 
     @Throws(Exception::class)
     private fun rsaEncrypt(keyAlias: String, secret: ByteArray): ByteArray {
-        val privateKeyEntry = getKey(keyAlias) as KeyStore.PrivateKeyEntry
-        val inputCipher = Cipher.getInstance(RSA_MODE, ANDROID_OPEN_SSL).apply {
+        initKeyPairIfNeeded(keyAlias)
+        val privateKeyEntry = keyStore.getEntry(keyAlias, null) as KeyStore.PrivateKeyEntry
+        val inputCipher = getCipher().apply {
             init(Cipher.ENCRYPT_MODE, privateKeyEntry.certificate.publicKey)
         }
 
@@ -105,10 +117,9 @@ class EncryptedStorage(
 
     @Throws(Exception::class)
     private fun rsaDecrypt(keyAlias: String, encrypted: ByteArray): ByteArray {
-        val privateKeyEntry = getKey(keyAlias) as KeyStore.PrivateKeyEntry
-        val outputCipher = Cipher.getInstance(RSA_MODE, ANDROID_OPEN_SSL).apply {
-            init(Cipher.DECRYPT_MODE, privateKeyEntry.privateKey)
-        }
+        val privateKeyEntry = keyStore.getEntry(keyAlias, null) as KeyStore.PrivateKeyEntry
+        val outputCipher = getCipher()
+        outputCipher.init(Cipher.DECRYPT_MODE, privateKeyEntry.privateKey)
 
         val cipherInputStream = CipherInputStream(ByteArrayInputStream(encrypted), outputCipher)
         val values = ArrayList<Byte>()

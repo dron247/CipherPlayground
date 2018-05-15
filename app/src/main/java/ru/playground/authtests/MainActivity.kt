@@ -22,33 +22,55 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var keyStoreProvider: KeyStoreProvider
     private lateinit var preferences: SharedPreferences
 
-    lateinit var buttonDecipherPin: Button
-    lateinit var buttonRememberPin: Button
-    lateinit var editPin: EditText
+    private lateinit var buttonDecipherPin: Button
+    private lateinit var buttonRememberPin: Button
+    private lateinit var buttonEncryptToken: Button
+    private lateinit var buttonDecryptToken: Button
+
+    private lateinit var editToken: EditText
+    private lateinit var editPin: EditText
+
 
     var fingerprintHelper: FingerprintHelper? = null
 
-    private val hasPin by lazy {
-        preferences.contains(PIN)
+    private val encryptedStorage: EncryptedStorage by lazy {
+        EncryptedStorage(this, object : IDataVault {
+            override fun write(key: String, value: String) {
+                preferences.edit {
+                    putString(key, value)
+                }
+            }
+
+            override fun read(key: String, defaultValue: String?): String? =
+                    preferences.getString(key, defaultValue)
+
+        }, "secret"
+        )
     }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        editPin = findViewById(R.id.editPin)
+        keyStoreProvider = KeyStoreProvider()
+        preferences = PreferenceManager.getDefaultSharedPreferences(this)
 
         buttonDecipherPin = findViewById(R.id.buttonDecipherPin)
         buttonRememberPin = findViewById(R.id.buttonRememberPin)
+        buttonDecryptToken = findViewById(R.id.buttonDecryptToken)
+        buttonEncryptToken = findViewById(R.id.buttonEncryptToken)
 
-        keyStoreProvider = KeyStoreProvider()
-        preferences = PreferenceManager.getDefaultSharedPreferences(this)
+        editPin = findViewById(R.id.editPin)
+        editToken = findViewById(R.id.editToken)
     }
 
     override fun onStart() {
         super.onStart()
         buttonDecipherPin.setOnClickListener(this)
         buttonRememberPin.setOnClickListener(this)
+        buttonEncryptToken.setOnClickListener(this)
+        buttonDecryptToken.setOnClickListener(this)
     }
 
     override fun onStop() {
@@ -60,7 +82,19 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         when (clickedView.id) {
             buttonDecipherPin.id -> decipherPin()
             buttonRememberPin.id -> rememberPin(editPin.text.toString())
+            buttonEncryptToken.id -> encodeToken(editToken.text.toString())
+            buttonDecryptToken.id -> decodeToken()
         }
+    }
+
+    private fun decodeToken() {
+        val str = encryptedStorage.get("token") ?: "empty"
+        alert(str)
+    }
+
+    private fun encodeToken(input: String) {
+        encryptedStorage.put("token", editToken.text.toString())
+        toast("Encoded value: ${editToken.text}")
     }
 
     private fun rememberPin(pin: String) {
@@ -78,7 +112,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
 
     private fun decipherPin() {
-        if (!hasPin) {
+        if (!preferences.contains(PIN)) {
             alert("No saved PIN")
             return
         }
