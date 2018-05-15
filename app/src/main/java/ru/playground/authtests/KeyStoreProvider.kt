@@ -1,5 +1,7 @@
 package ru.playground.authtests
 
+import android.annotation.TargetApi
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
@@ -14,6 +16,7 @@ import javax.crypto.spec.OAEPParameterSpec
 import javax.crypto.spec.PSource
 
 
+@TargetApi(Build.VERSION_CODES.M)
 class KeyStoreProvider {
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
