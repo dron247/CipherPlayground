@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         const val PIN = "pin"
     }
 
-    private lateinit var keyStoreProvider: TouchIdKeyStoreProvider
+    private lateinit var touchIdKeyStoreProvider: TouchIdKeyStoreProvider
     private val preferences: SharedPreferences by lazy {
         PreferenceManager.getDefaultSharedPreferences(this)
     }
@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        keyStoreProvider = TouchIdKeyStoreProvider()
+        touchIdKeyStoreProvider = TouchIdKeyStoreProvider()
     }
 
     override fun onStart() {
@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             return
         }
 
-        val encoded = keyStoreProvider.encode(PIN, pin)
+        val encoded = touchIdKeyStoreProvider.encode(PIN, pin)
         preferences.edit {
             putString(PIN, encoded)
         }
@@ -134,7 +134,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             TouchIdState.NOT_SECURED -> toast("NOT SECURED")
             TouchIdState.NO_FINGERPRINTS -> toast("NO FINGERPRINTS")
             TouchIdState.READY -> {
-                val cryptoObject = keyStoreProvider.getCryptoObjectFor(PIN)
+                val cryptoObject = touchIdKeyStoreProvider.getCryptoObjectFor(PIN)
                 if (cryptoObject != null) {
                     toast("Use your finger to get a PIN")
                     fingerprintHelper = FingerprintHelper(this)
@@ -158,7 +158,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             val cipher = it.cryptoObject.cipher
             val encoded = preferences.getString(PIN, null)
             if (encoded != null || cipher != null) {
-                val decoded = keyStoreProvider.decode(PIN, encoded, cipher!!)
+                val decoded = touchIdKeyStoreProvider.decode(encoded, cipher!!)
                 alert(decoded ?: "decoded is null WTF")
             }
         }

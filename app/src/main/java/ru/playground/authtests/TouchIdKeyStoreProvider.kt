@@ -26,96 +26,63 @@ class TouchIdKeyStoreProvider {
     /**
      * A keystore for our keys
      */
-    private val keystore: KeyStore? by lazy {
-        try {
-            val ks = KeyStore.getInstance(ANDROID_KEYSTORE)
-            ks?.load(null)
-            return@lazy ks
-        } catch (e: Exception) {
-            e.printStackTrace() //debug purpose
-            return@lazy null
+    private val keystore: KeyStore by lazy {
+        KeyStore.getInstance(ANDROID_KEYSTORE).also {
+            it.load(null)
         }
     }
 
-    private val cipher: Cipher? by lazy {
-        try {
-            return@lazy Cipher.getInstance(CIPHER_TRANSFORMATION)
-        } catch (e: Exception) {
-            e.printStackTrace() //debug purpose
-            return@lazy null
-        }
+    private val cipher: Cipher by lazy {
+        Cipher.getInstance(CIPHER_TRANSFORMATION)
     }
 
-    private val keyPairGenerator: KeyPairGenerator? by lazy {
-        try {
-            return@lazy KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, ANDROID_KEYSTORE)
-        } catch (e: Exception) {
-            e.printStackTrace() //debug purpose
-            return@lazy null
-        }
+    private val keyPairGenerator: KeyPairGenerator by lazy {
+        KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, ANDROID_KEYSTORE)
     }
 
-    private fun isKeyReady(alias: String): Boolean {
-        if (keystore == null) return false
-        try {
-            return keystore!!.containsAlias(alias) || generateNewKeyPair(alias)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return false
-    }
+    private fun isKeyReady(alias: String): Boolean =
+            keystore.containsAlias(alias) || generateNewKeyPair(alias)
+
 
     private fun generateNewKeyPair(keyAlias: String): Boolean {
-        if (keyPairGenerator != null) {
-            try {
-                keyPairGenerator!!.initialize(
-                        KeyGenParameterSpec
-                                .Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                                .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
-                                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
-                                .setUserAuthenticationRequired(true)
-                                .build()
-                )
-                keyPairGenerator!!.generateKeyPair()
-                return true
-            } catch (e: InvalidAlgorithmParameterException) {
-                e.printStackTrace()
-            }
-        }
-        return false
+        keyPairGenerator.initialize(
+                KeyGenParameterSpec
+                        .Builder(keyAlias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                        .setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA512)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP)
+                        .setUserAuthenticationRequired(true)
+                        .build()
+        )
+        keyPairGenerator.generateKeyPair()
+        return true
     }
 
     private fun deleteKey(alias: String) {
-        keystore?.let {
-            try {
-                it.deleteEntry(alias)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+        try {
+            keystore.deleteEntry(alias)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
 
     @Throws(KeyStoreException::class, NoSuchAlgorithmException::class, UnrecoverableKeyException::class, InvalidKeyException::class)
     private fun initDecodeCipher(mode: Int, alias: String) {
-        val key = keystore!!.getKey(alias, null) as PrivateKey
-        cipher!!.init(mode, key)
+        val key = keystore.getKey(alias, null) as PrivateKey
+        cipher.init(mode, key)
     }
 
     @Throws(KeyStoreException::class, InvalidKeySpecException::class, NoSuchAlgorithmException::class, InvalidKeyException::class, InvalidAlgorithmParameterException::class)
     private fun initEncodeCipher(mode: Int, alias: String) {
-        val key = keystore!!.getCertificate(alias).publicKey
+        val key = keystore.getCertificate(alias).publicKey
         val unrestricted = KeyFactory.getInstance(key.algorithm).generatePublic(X509EncodedKeySpec(key.encoded))
         val spec = OAEPParameterSpec("SHA-256", "MGF1", MGF1ParameterSpec.SHA1, PSource.PSpecified.DEFAULT)
-        cipher!!.init(mode, unrestricted, spec)
+        cipher.init(mode, unrestricted, spec)
     }
 
     private fun initCipher(mode: Int, keyAlias: String): Boolean {
-        if (keystore == null) return false
-        if (cipher == null) return false
-
         try {
-            keystore!!.load(null)
+            keystore.load(null)
             when (mode) {
                 Cipher.ENCRYPT_MODE -> initEncodeCipher(mode, keyAlias)
                 Cipher.DECRYPT_MODE -> initDecodeCipher(mode, keyAlias)
@@ -131,14 +98,11 @@ class TouchIdKeyStoreProvider {
         }
     }
 
-    private fun readyFor(key: String): Boolean =
-            keystore != null && cipher != null && isKeyReady(key)
-
 
     fun encode(alias: String, input: String): String? {
         try {
-            if (readyFor(alias) && initCipher(Cipher.ENCRYPT_MODE, alias)) {
-                val bytes = cipher!!.doFinal(input.toByteArray())
+            if (isKeyReady(alias) && initCipher(Cipher.ENCRYPT_MODE, alias)) {
+                val bytes = cipher.doFinal(input.toByteArray())
                 return Base64.encodeToString(bytes, Base64.NO_WRAP)
             }
         } catch (e: Exception) {
@@ -147,7 +111,7 @@ class TouchIdKeyStoreProvider {
         return null
     }
 
-    fun decode(alias: String, encodedString: String, decrypter: Cipher): String? {
+    fun decode(encodedString: String, decrypter: Cipher): String? {
         try {
             val bytes = Base64.decode(encodedString, Base64.NO_WRAP)
             return String(decrypter.doFinal(bytes))
@@ -160,8 +124,8 @@ class TouchIdKeyStoreProvider {
 
 
     fun getCryptoObjectFor(key: String): FingerprintManagerCompat.CryptoObject? {
-        return if (readyFor(key) && initCipher(Cipher.DECRYPT_MODE, key)) {
-            FingerprintManagerCompat.CryptoObject(cipher!!)
+        return if (isKeyReady(key) && initCipher(Cipher.DECRYPT_MODE, key)) {
+            FingerprintManagerCompat.CryptoObject(cipher)
         } else null
     }
 
