@@ -12,6 +12,8 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
+import kotlinx.android.synthetic.main.activity_main.*
+import javax.crypto.BadPaddingException
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
 
@@ -26,6 +28,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var buttonRememberPin: Button
     private lateinit var buttonEncryptToken: Button
     private lateinit var buttonDecryptToken: Button
+
 
     private lateinit var editToken: EditText
     private lateinit var editPin: EditText
@@ -71,6 +74,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         buttonRememberPin.setOnClickListener(this)
         buttonEncryptToken.setOnClickListener(this)
         buttonDecryptToken.setOnClickListener(this)
+        buttonEncryptTokenWithPin.setOnClickListener(this)
+        buttonDecryptTokenWithPin.setOnClickListener(this)
     }
 
     override fun onStop() {
@@ -84,6 +89,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             buttonRememberPin.id -> rememberPin(editPin.text.toString())
             buttonEncryptToken.id -> encodeToken(editToken.text.toString())
             buttonDecryptToken.id -> decodeToken()
+            buttonEncryptTokenWithPin.id -> encodeToken(editToken.text.toString(), editPin.text.toString())
+            buttonDecryptTokenWithPin.id -> decodeToken(editPin.text.toString())
         }
     }
 
@@ -94,6 +101,23 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun encodeToken(input: String) {
         encryptedStorage.put("token", editToken.text.toString())
+        toast("Encoded value: ${editToken.text}")
+    }
+
+
+    private fun decodeToken(pass: String) {
+        try {
+            val str = encryptedStorage.get("token2", secret = EncryptedStorage.keyFrom(pass))
+                    ?: "empty"
+            alert(str)
+        } catch (bpe: BadPaddingException) {
+            alert("Incorrect password")
+        }
+
+    }
+
+    private fun encodeToken(input: String, pass: String) {
+        encryptedStorage.put("token2", editToken.text.toString(), secret = EncryptedStorage.keyFrom(pass))
         toast("Encoded value: ${editToken.text}")
     }
 

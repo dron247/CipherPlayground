@@ -12,6 +12,7 @@ import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.util.*
+import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.CipherInputStream
 import javax.crypto.CipherOutputStream
@@ -34,6 +35,19 @@ class EncryptedStorage(
         private const val ANDROID_OPEN_SSL = "AndroidOpenSSL"
         private const val CIPHER_PROVIDER = "BC"
         private const val SECRET_KEY_SPEC_ALGORITHM = "AES"
+
+        @Throws(IllegalArgumentException::class)
+        fun keyFrom(input: String): Key {
+            if (input.isEmpty()) throw IllegalArgumentException("Key must be longer than 0")
+            val bytes = input.toByteArray()
+            if (bytes.size > 16) throw IllegalArgumentException("Key size must be 16 bytes max")
+            val keyBytes = ByteArray(16)
+            keyBytes.fill(0)
+            bytes.forEachIndexed({ index, byte ->
+                keyBytes[index] = byte
+            })
+            return SecretKeySpec(keyBytes, SECRET_KEY_SPEC_ALGORITHM)
+        }
     }
 
     private val keyStore: KeyStore by lazy {
@@ -138,12 +152,13 @@ class EncryptedStorage(
      * Performs data encoding and then puts a result into provided storage
      * @param alias encoded data identifier
      * @param value a string to encode
+     * @param secret defaults to random secret key, use [keyFrom] static method to apply non random key
      */
     @Throws(Exception::class)
-    fun put(alias: String, value: String) {
+    fun put(alias: String, value: String, secret: Key = secretKey) {
         val bytes = value.toByteArray()
         val cipher = Cipher.getInstance(AES_MODE, CIPHER_PROVIDER).also {
-            it.init(Cipher.ENCRYPT_MODE, secretKey)
+            it.init(Cipher.ENCRYPT_MODE, secret)
         }
         val encoded = cipher.doFinal(bytes)
         val b64Encoded = Base64.encodeToString(encoded, Base64.DEFAULT)
@@ -153,13 +168,15 @@ class EncryptedStorage(
     /**
      * Finds an encoded value inside provided secret storage, and decodes it
      * @param alias encoded data identifier
+     * @param secret defaults to random secret key, use [keyFrom] static method to apply non random key
      * @return a string with encoded data, or null if not found
      */
-    fun get(alias: String): String? {
+    @Throws(BadPaddingException::class)
+    fun get(alias: String, secret: Key = secretKey): String? {
         val b64Encoded = vault.read(alias, null) ?: return null
 
         val cipher = Cipher.getInstance(AES_MODE, CIPHER_PROVIDER).also {
-            it.init(Cipher.DECRYPT_MODE, secretKey)
+            it.init(Cipher.DECRYPT_MODE, secret)
         }
 
         val encoded = Base64.decode(b64Encoded, Base64.DEFAULT)
