@@ -9,8 +9,6 @@ import android.support.v4.os.CancellationSignal
 import android.support.v7.app.AlertDialog
 import android.support.v7.app.AppCompatActivity
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
 import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_main.*
 import javax.crypto.BadPaddingException
@@ -24,17 +22,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var keyStoreProvider: KeyStoreProvider
     private lateinit var preferences: SharedPreferences
 
-    private lateinit var buttonDecipherPin: Button
-    private lateinit var buttonRememberPin: Button
-    private lateinit var buttonEncryptToken: Button
-    private lateinit var buttonDecryptToken: Button
 
-
-    private lateinit var editToken: EditText
-    private lateinit var editPin: EditText
-
-
-    var fingerprintHelper: FingerprintHelper? = null
+    private var fingerprintHelper: FingerprintHelper? = null
 
     private val encryptedStorage: EncryptedStorage by lazy {
         EncryptedStorage(this, object : IDataVault {
@@ -58,14 +47,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         keyStoreProvider = KeyStoreProvider()
         preferences = PreferenceManager.getDefaultSharedPreferences(this)
-
-        buttonDecipherPin = findViewById(R.id.buttonDecipherPin)
-        buttonRememberPin = findViewById(R.id.buttonRememberPin)
-        buttonDecryptToken = findViewById(R.id.buttonDecryptToken)
-        buttonEncryptToken = findViewById(R.id.buttonEncryptToken)
-
-        editPin = findViewById(R.id.editPin)
-        editToken = findViewById(R.id.editToken)
     }
 
     override fun onStart() {
