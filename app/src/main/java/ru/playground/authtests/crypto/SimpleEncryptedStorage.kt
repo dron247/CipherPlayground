@@ -30,10 +30,10 @@ class SimpleEncryptedStorage(
 ) : IEncryptedStorage {
     companion object {
         private const val KEY_PAIR_GENERATOR_ALGORITHM = "RSA"
-        private const val CIPHER_MODE = "RSA/ECB/PKCS1Padding"
-        private const val AES_MODE = "AES/ECB/PKCS7Padding"
-        private const val ANDROID_OPEN_SSL = "AndroidOpenSSL"
-        private const val CIPHER_PROVIDER = "BC"
+        private const val CIPHER_MODE_KEYS = "RSA/ECB/PKCS1Padding"
+        private const val CIPHER_MODE_DATA = "AES/ECB/PKCS7Padding"
+        private const val CIPHER_PROVIDER_KEYS = "AndroidOpenSSL"
+        private const val CIPHER_PROVIDER_DATA = "BC"
         private const val SECRET_KEY_SPEC_ALGORITHM = "AES"
     }
 
@@ -90,9 +90,9 @@ class SimpleEncryptedStorage(
     private fun getCipher(): Cipher {
         try {
             return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) { // below android m
-                Cipher.getInstance(CIPHER_MODE, ANDROID_OPEN_SSL) // error in android 6: InvalidKeyException: Need RSA private or public key
+                Cipher.getInstance(CIPHER_MODE_KEYS, CIPHER_PROVIDER_KEYS) // error in android 6: InvalidKeyException: Need RSA private or public key
             } else { // android m and above
-                Cipher.getInstance(CIPHER_MODE, "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
+                Cipher.getInstance(CIPHER_MODE_KEYS, "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
             }
         } catch (exception: Exception) {
             throw RuntimeException("getCipher: Failed to get an instance of Cipher", exception)
@@ -144,7 +144,7 @@ class SimpleEncryptedStorage(
     @Throws(Exception::class)
     override fun put(alias: String, value: String, secret: Key) {
         val bytes = value.toByteArray()
-        val cipher = Cipher.getInstance(AES_MODE, CIPHER_PROVIDER).also {
+        val cipher = Cipher.getInstance(CIPHER_MODE_DATA, CIPHER_PROVIDER_DATA).also {
             it.init(Cipher.ENCRYPT_MODE, secret)
         }
         val encoded = cipher.doFinal(bytes)
@@ -162,7 +162,7 @@ class SimpleEncryptedStorage(
     override fun get(alias: String, secret: Key): String? {
         val b64Encoded = vault.read(alias, null) ?: return null
 
-        val cipher = Cipher.getInstance(AES_MODE, CIPHER_PROVIDER).also {
+        val cipher = Cipher.getInstance(CIPHER_MODE_DATA, CIPHER_PROVIDER_DATA).also {
             it.init(Cipher.DECRYPT_MODE, secret)
         }
 
@@ -172,7 +172,7 @@ class SimpleEncryptedStorage(
     }
 
     /**
-     * Creates encrypting key from given input string
+     * Creates weak crypto key from given input string, PIN code scenario
      */
     @Throws(IllegalArgumentException::class)
     override fun keyFrom(input: String): Key {

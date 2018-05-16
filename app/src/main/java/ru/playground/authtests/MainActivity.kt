@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         const val PIN = "pin"
     }
 
-    private lateinit var keyStoreProvider: KeyStoreProvider
+    private lateinit var keyStoreProvider: TouchIdKeyStoreProvider
     private val preferences: SharedPreferences by lazy {
         PreferenceManager.getDefaultSharedPreferences(this)
     }
@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        keyStoreProvider = KeyStoreProvider()
+        keyStoreProvider = TouchIdKeyStoreProvider()
     }
 
     override fun onStart() {

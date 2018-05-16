@@ -17,7 +17,7 @@ import javax.crypto.spec.PSource
 
 
 @TargetApi(Build.VERSION_CODES.M)
-class KeyStoreProvider {
+class TouchIdKeyStoreProvider {
     companion object {
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val CIPHER_TRANSFORMATION = "RSA/ECB/OAEPWithSHA-256AndMGF1Padding"
