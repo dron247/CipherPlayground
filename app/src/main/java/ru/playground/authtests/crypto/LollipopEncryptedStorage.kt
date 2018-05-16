@@ -1,4 +1,4 @@
-package ru.playground.authtests
+package ru.playground.authtests.crypto
 
 import android.content.Context
 import android.os.Build
@@ -22,12 +22,12 @@ import kotlin.collections.ArrayList
 
 
 //@TargetApi(Build.VERSION_CODES.LOLLIPOP)
-class EncryptedStorage(
+class LollipopEncryptedStorage(
         private val context: Context,
         private val vault: IDataVault,
         private val secretKeyAlias: String,
         private val keystoreId: String = "AndroidKeyStore"
-) {
+) : IEncryptedStorage {
     companion object {
         private const val KEY_PAIR_GENERATOR_ALGORITHM = "RSA"
         private const val RSA_MODE = "RSA/ECB/PKCS1Padding"
@@ -35,19 +35,6 @@ class EncryptedStorage(
         private const val ANDROID_OPEN_SSL = "AndroidOpenSSL"
         private const val CIPHER_PROVIDER = "BC"
         private const val SECRET_KEY_SPEC_ALGORITHM = "AES"
-
-        @Throws(IllegalArgumentException::class)
-        fun keyFrom(input: String): Key {
-            if (input.isEmpty()) throw IllegalArgumentException("Key must be longer than 0")
-            val bytes = input.toByteArray()
-            if (bytes.size > 16) throw IllegalArgumentException("Key size must be 16 bytes max")
-            val keyBytes = ByteArray(16)
-            keyBytes.fill(0)
-            bytes.forEachIndexed({ index, byte ->
-                keyBytes[index] = byte
-            })
-            return SecretKeySpec(keyBytes, SECRET_KEY_SPEC_ALGORITHM)
-        }
     }
 
     private val keyStore: KeyStore by lazy {
@@ -62,7 +49,7 @@ class EncryptedStorage(
         return SecretKeySpec(key, SECRET_KEY_SPEC_ALGORITHM)
     }
 
-    private val secretKey: Key
+    override val secretKey: Key
         get() {
             var retVal = vault.read(secretKeyAlias, null)
             if (retVal != null) return decodeKeySpec(retVal)
@@ -103,9 +90,9 @@ class EncryptedStorage(
     private fun getCipher(): Cipher {
         try {
             return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) { // below android m
-                Cipher.getInstance("RSA/ECB/PKCS1Padding", ANDROID_OPEN_SSL) // error in android 6: InvalidKeyException: Need RSA private or public key
+                Cipher.getInstance(RSA_MODE, ANDROID_OPEN_SSL) // error in android 6: InvalidKeyException: Need RSA private or public key
             } else { // android m and above
-                Cipher.getInstance("RSA/ECB/PKCS1Padding", "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
+                Cipher.getInstance(RSA_MODE, "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
             }
         } catch (exception: Exception) {
             throw RuntimeException("getCipher: Failed to get an instance of Cipher", exception)
@@ -155,7 +142,7 @@ class EncryptedStorage(
      * @param secret defaults to random secret key, use [keyFrom] static method to apply non random key
      */
     @Throws(Exception::class)
-    fun put(alias: String, value: String, secret: Key = secretKey) {
+    override fun put(alias: String, value: String, secret: Key) {
         val bytes = value.toByteArray()
         val cipher = Cipher.getInstance(AES_MODE, CIPHER_PROVIDER).also {
             it.init(Cipher.ENCRYPT_MODE, secret)
@@ -172,7 +159,7 @@ class EncryptedStorage(
      * @return a string with encoded data, or null if not found
      */
     @Throws(BadPaddingException::class)
-    fun get(alias: String, secret: Key = secretKey): String? {
+    override fun get(alias: String, secret: Key): String? {
         val b64Encoded = vault.read(alias, null) ?: return null
 
         val cipher = Cipher.getInstance(AES_MODE, CIPHER_PROVIDER).also {
@@ -183,12 +170,22 @@ class EncryptedStorage(
         val decoded = cipher.doFinal(encoded)
         return String(decoded)
     }
+
+    /**
+     * Creates encrypting key from given input string
+     */
+    @Throws(IllegalArgumentException::class)
+    override fun keyFrom(input: String): Key {
+        if (input.isEmpty()) throw IllegalArgumentException("Key must be longer than 0")
+        val bytes = input.toByteArray()
+        if (bytes.size > 16) throw IllegalArgumentException("Key size must be 16 bytes max")
+        val keyBytes = ByteArray(16)
+        keyBytes.fill(0)
+        bytes.forEachIndexed({ index, byte ->
+            keyBytes[index] = byte
+        })
+        return SecretKeySpec(keyBytes, LollipopEncryptedStorage.SECRET_KEY_SPEC_ALGORITHM)
+    }
     //endregion
-
-
 }
 
-interface IDataVault {
-    fun write(key: String, value: String)
-    fun read(key: String, defaultValue: String? = null): String?
-}

@@ -11,6 +11,9 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_main.*
+import ru.playground.authtests.crypto.IDataVault
+import ru.playground.authtests.crypto.IEncryptedStorage
+import ru.playground.authtests.crypto.LollipopEncryptedStorage
 import javax.crypto.BadPaddingException
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
@@ -25,8 +28,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private var fingerprintHelper: FingerprintHelper? = null
 
-    private val encryptedStorage: EncryptedStorage by lazy {
-        EncryptedStorage(this, object : IDataVault {
+    private val encryptedStorage: IEncryptedStorage by lazy {
+        LollipopEncryptedStorage(this, object : IDataVault {
             override fun write(key: String, value: String) {
                 preferences.edit {
                     putString(key, value)
@@ -88,7 +91,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
     private fun decodeToken(pass: String) {
         try {
-            val str = encryptedStorage.get("token2", secret = EncryptedStorage.keyFrom(pass))
+            val str = encryptedStorage.get("token2", secret = encryptedStorage.keyFrom(pass))
                     ?: "empty"
             alert(str)
         } catch (bpe: BadPaddingException) {
@@ -98,7 +101,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun encodeToken(input: String, pass: String) {
-        encryptedStorage.put("token2", editToken.text.toString(), secret = EncryptedStorage.keyFrom(pass))
+        encryptedStorage.put("token2", editToken.text.toString(), secret = encryptedStorage.keyFrom(pass))
         toast("Encoded value: ${editToken.text}")
     }
 
