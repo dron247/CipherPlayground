@@ -13,7 +13,7 @@ import android.widget.Toast
 import kotlinx.android.synthetic.main.activity_main.*
 import ru.playground.authtests.crypto.IDataVault
 import ru.playground.authtests.crypto.IEncryptedStorage
-import ru.playground.authtests.crypto.LollipopEncryptedStorage
+import ru.playground.authtests.crypto.SimpleEncryptedStorage
 import javax.crypto.BadPaddingException
 
 class MainActivity : AppCompatActivity(), View.OnClickListener {
@@ -23,13 +23,12 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private lateinit var keyStoreProvider: KeyStoreProvider
-    private lateinit var preferences: SharedPreferences
+    private val preferences: SharedPreferences by lazy {
+        PreferenceManager.getDefaultSharedPreferences(this)
+    }
 
-
-    private var fingerprintHelper: FingerprintHelper? = null
-
-    private val encryptedStorage: IEncryptedStorage by lazy {
-        LollipopEncryptedStorage(this, object : IDataVault {
+    private val vault: IDataVault by lazy {
+        object : IDataVault {
             override fun write(key: String, value: String) {
                 preferences.edit {
                     putString(key, value)
@@ -39,8 +38,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
             override fun read(key: String, defaultValue: String?): String? =
                     preferences.getString(key, defaultValue)
 
-        }, "secret"
-        )
+        }
+    }
+
+
+    private var fingerprintHelper: FingerprintHelper? = null
+
+    private val encryptedStorage: IEncryptedStorage by lazy {
+        SimpleEncryptedStorage(this, vault, "authTestsSecret")
     }
 
 
@@ -49,7 +54,6 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         setContentView(R.layout.activity_main)
 
         keyStoreProvider = KeyStoreProvider()
-        preferences = PreferenceManager.getDefaultSharedPreferences(this)
     }
 
     override fun onStart() {
@@ -84,15 +88,15 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun encodeToken(input: String) {
-        encryptedStorage.put("token", editToken.text.toString())
+        encryptedStorage.put("token", input)
         toast("Encoded value: ${editToken.text}")
     }
 
 
     private fun decodeToken(pass: String) {
         try {
-            val str = encryptedStorage.get("token2", secret = encryptedStorage.keyFrom(pass))
-                    ?: "empty"
+            val str = encryptedStorage
+                    .get("token2", secret = encryptedStorage.keyFrom(pass)) ?: "empty"
             alert(str)
         } catch (bpe: BadPaddingException) {
             alert("Incorrect password")
@@ -101,7 +105,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     private fun encodeToken(input: String, pass: String) {
-        encryptedStorage.put("token2", editToken.text.toString(), secret = encryptedStorage.keyFrom(pass))
+        encryptedStorage.put("token2", input, secret = encryptedStorage.keyFrom(pass))
         toast("Encoded value: ${editToken.text}")
     }
 

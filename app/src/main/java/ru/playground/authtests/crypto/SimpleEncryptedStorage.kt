@@ -22,15 +22,15 @@ import kotlin.collections.ArrayList
 
 
 //@TargetApi(Build.VERSION_CODES.LOLLIPOP)
-class LollipopEncryptedStorage(
+class SimpleEncryptedStorage(
         private val context: Context,
         private val vault: IDataVault,
         private val secretKeyAlias: String,
-        private val keystoreId: String = "AndroidKeyStore"
+        private val keystoreProvider: String = "AndroidKeyStore"
 ) : IEncryptedStorage {
     companion object {
         private const val KEY_PAIR_GENERATOR_ALGORITHM = "RSA"
-        private const val RSA_MODE = "RSA/ECB/PKCS1Padding"
+        private const val CIPHER_MODE = "RSA/ECB/PKCS1Padding"
         private const val AES_MODE = "AES/ECB/PKCS7Padding"
         private const val ANDROID_OPEN_SSL = "AndroidOpenSSL"
         private const val CIPHER_PROVIDER = "BC"
@@ -38,7 +38,7 @@ class LollipopEncryptedStorage(
     }
 
     private val keyStore: KeyStore by lazy {
-        KeyStore.getInstance(keystoreId).also {
+        KeyStore.getInstance(keystoreProvider).also {
             it.load(null)
         }
     }
@@ -90,9 +90,9 @@ class LollipopEncryptedStorage(
     private fun getCipher(): Cipher {
         try {
             return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) { // below android m
-                Cipher.getInstance(RSA_MODE, ANDROID_OPEN_SSL) // error in android 6: InvalidKeyException: Need RSA private or public key
+                Cipher.getInstance(CIPHER_MODE, ANDROID_OPEN_SSL) // error in android 6: InvalidKeyException: Need RSA private or public key
             } else { // android m and above
-                Cipher.getInstance(RSA_MODE, "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
+                Cipher.getInstance(CIPHER_MODE, "AndroidKeyStoreBCWorkaround") // error in android 5: NoSuchProviderException: Provider not available: AndroidKeyStoreBCWorkaround
             }
         } catch (exception: Exception) {
             throw RuntimeException("getCipher: Failed to get an instance of Cipher", exception)
@@ -184,7 +184,9 @@ class LollipopEncryptedStorage(
         bytes.forEachIndexed({ index, byte ->
             keyBytes[index] = byte
         })
-        return SecretKeySpec(keyBytes, LollipopEncryptedStorage.SECRET_KEY_SPEC_ALGORITHM)
+        return SecretKeySpec(keyBytes, SimpleEncryptedStorage.SECRET_KEY_SPEC_ALGORITHM).also {
+            bytes.fill(0)
+        }
     }
     //endregion
 }
